@@ -1,0 +1,17 @@
+# State & logs
+.feishu_bridge_state.json
+bridge_debug.log
+bridge.log
+
+# Credentials (user-specific, never commit)
+config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node (if present)
+node_modules/
