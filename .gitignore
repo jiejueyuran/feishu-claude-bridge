@@ -15,3 +15,5 @@ venv/
 
 # Node (if present)
 node_modules/
+
+.feishu_conversation_history.json
