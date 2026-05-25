@@ -1,135 +1,88 @@
-# Feishu ↔ Claude Bridge
+# Claude Memory System — Reusable Framework
 
-Bridge messages from a Feishu (飞书) group chat to Claude CLI and back. Send a message in your Feishu group, get a Claude-powered reply — no manual switching needed.
+A structured persistent-memory framework for Claude Code sessions. Designed for developers who want Claude to remember context, preferences, and project state across conversations.
 
 ## How It Works
 
+Claude's memory system is file-based. Each memory is a Markdown file with YAML frontmatter, indexed by a central `MEMORY.md`. On every conversation, Claude reads the index and loads relevant memories as context.
+
 ```
-You → Feishu Group → Feishu API → bridge.py → Claude CLI → bridge.py → Feishu API → Group
-```
-
-The bridge polls the Feishu group for new messages every N seconds, feeds them to `claude -p "..."`, and posts the response back to the group.
-
-## Prerequisites
-
-- **Python 3.8+** — for running the bridge script
-- **Claude Code CLI** — `npm install -g @anthropic-ai/claude-code`
-- **Feishu Bot App** — you need to create one at [Feishu Open Platform](https://open.feishu.cn/app)
-
-### Feishu Bot Setup
-
-1. Go to [Feishu Open Platform](https://open.feishu.cn/app) → Create App → type "bot"
-2. Under **Permissions** → add scope `im:message`
-3. Under **Security** → get your **App ID** and **App Secret**
-4. Under **Features** → enable **Bot** capability
-5. Publish the app (version → publish)
-6. Add the bot to a group chat: open group → Settings → Bot → Add Bot
-
-## Quick Start
-
-```bash
-# 1. Clone and install dependencies
-pip install requests
-
-# 2. Run the setup script (interactive)
-pwsh ./install.ps1
-
-# 3. Start the bridge
-python bridge.py
+memory/
+├── MEMORY.md              ← Index (always loaded, ~first 200 lines)
+├── explicit/              ← User-requested memories (name, contacts, keys)
+├── key/                   ← Auto-captured behavior rules & project context
+└── *.md                   ← Individual memory files
 ```
 
-Send `hello` in your Feishu group. If the bridge is running, you'll get a reply.
+## Memory Types
 
-## Manual Configuration
+| Type | Purpose | Example |
+|------|---------|---------|
+| `user` | Role, goals, expertise level | "User is a UE5 game developer" |
+| `feedback` | Behavior guidance | "Always ask before deleting files" |
+| `project` | Ongoing work context | "Merging feature branch this week" |
+| `reference` | External resource pointers | "Bugs tracked in Linear INGEST project" |
 
-If you prefer to configure manually:
+## Memory File Structure
 
-### 1. Credentials
+Each memory file uses YAML frontmatter:
 
-Create `~/.feishu-user-plugin/credentials.json`:
+```markdown
+---
+name: short-kebab-slug
+description: One-line summary for relevance matching
+type: feedback                # user | feedback | project | reference
+---
 
-```json
-{
-  "profiles": {
-    "default": {
-      "LARK_APP_ID": "cli_xxxxxxxxxxxxxxxxxxxx",
-      "LARK_APP_SECRET": "your-app-secret-here"
-    }
-  }
-}
+The memory content. For feedback/project types, structure as:
+- The rule or fact
+- **Why:** the motivation
+- **How to apply:** when to use this
+
+Link related memories: [[related-memory-name]]
 ```
 
-### 2. Config
+## Index File (MEMORY.md)
 
-Copy `config.example.json` to `config.json` and fill in:
+The index is a flat list of links with one-line hooks:
 
-| Field | Description |
-|-------|-------------|
-| `group_id` | Group chat ID (`oc_xxxx...`) |
-| `bot_app_id` | Bot App ID (`cli_xxxx...`) |
-| `poll_interval` | Poll interval in seconds (default 3) |
-| `state_file` | Path to state file (default `.feishu_bridge_state.json`) |
-| `log_file` | Path to debug log (default `bridge_debug.log`) |
-| `credentials_file` | Path to credentials (leave empty for default `~/.feishu-user-plugin/credentials.json`) |
-
-### 3. Start
-
-```bash
-python bridge.py
+```markdown
+- [记忆策略](key/memory-policy.md) — 事实信息需明确指令才记，行为规则可自然适配
+- [UE5游戏项目](game-project-example.md) — 《项目名》箱庭动作RPG，UE5.6蓝图
 ```
 
-Or double-click `start.vbs` to run silently (Windows).
+- Keep entries under ~150 chars
+- First 200 lines loaded every session
+- Organize semantically by topic, not chronologically
 
-## Auto-Start on Login (Windows)
+## What NOT to Save
 
-Run the install script and choose "yes" for auto-start:
+- Code patterns or architecture — read from source
+- Git history — `git log` is authoritative
+- Bug fixes — the fix is in the code
+- Ephemeral task state — use task lists, not memory
 
-```powershell
-.\install.ps1
+## Design Principles
+
+1. **Discoverability** — MEMORY.md index makes everything findable
+2. **Staleness** — memories decay; verify against current state before acting
+3. **Bounded context** — index is self-limiting (200 lines ~ 30-40 entries)
+4. **Explicit vs implicit** — user-requested saves go in `explicit/`, auto-captured goes in `key/`
+
+## Integration with This Bridge
+
+The memory system pairs naturally with the Feishu bridge: when Claude processes Feishu messages via `bridge.py`, it can use memory to maintain conversational continuity across sessions — remembering user preferences, ongoing tasks, and project context.
+
+## Directory Template
+
 ```
-
-This creates a scheduled task that launches the bridge silently at login.
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `bridge.py` | Main bridge script — polls Feishu, calls Claude, replies |
-| `config.json` | Your configuration (ignored by git, never commit) |
-| `config.example.json` | Configuration template |
-| `install.ps1` | Interactive setup script |
-| `start.vbs` | Silent Windows launcher (no console window) |
-| `.feishu_bridge_state.json` | Tracks processed messages (auto-generated) |
-| `bridge_debug.log` | Debug log (auto-generated) |
-
-## Troubleshooting
-
-**No reply in group?**
-- Check the bridge is running (`tasklist | grep python`)
-- Check `bridge_debug.log` for errors
-- Verify the bot is added to the group and has `im:message` scope
-- Make sure `config.json` has the correct `group_id`
-
-**"获取 token 失败" / Token errors**
-- Verify `credentials.json` has correct App ID / App Secret
-- Check Feishu app is published and enabled
-
-**Claude not responding**
-- Run `claude -p "test"` manually to verify Claude CLI works
-- Check Claude is authenticated (`claude` → login if needed)
-
-**Windows encoding issues**
-- The bridge sets `PYTHONIOENCODING=utf-8` automatically
-- If you see garbled output, set it manually: `$env:PYTHONIOENCODING='utf-8'`
-
-## Limits
-
-- Claude CLI timeout: 120 seconds per message
-- Feishu message length limit: ~30000 characters
-- Responses longer than 30000 chars are truncated
-- The bridge processes one message at a time, oldest first
-- No conversation history is preserved — each message is standalone
-
-## License
-
-MIT
+memory-system/
+├── README.md                   ← This file
+├── MEMORY_INDEX.example.md     ← Example index
+├── templates/
+│   ├── memory-user.md          ← Template for user profile
+│   ├── memory-feedback.md      ← Template for behavior rules
+│   ├── memory-project.md       ← Template for project context
+│   └── memory-reference.md     ← Template for external pointers
+└── how-to-setup.md             ← Installation guide
+```
