@@ -1,0 +1,7 @@
+bridge.pid
+bridge_output.log
+bridge_debug.log
+.feishu_bridge_state.json
+config.json
+__pycache__/
+*.pyc
